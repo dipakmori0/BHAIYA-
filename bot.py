@@ -1,6 +1,7 @@
 import requests
 import sqlite3
-from telebot import TeleBot
+from random import randint
+import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 # ---------------- CONFIG ----------------
@@ -103,11 +104,10 @@ def generate_vehicle_report(vin):
     except:
         return f"❌ Failed to fetch vehicle info for VIN: {vin}"
 
-# ---------- TELEGRAM BOT ----------
-bot = TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_joined(user_id):
-    # TODO: real channel check via get_chat_member
+    # Dummy join check, can be updated with actual Telegram join API
     return True
 
 @bot.message_handler(commands=["start"])
@@ -129,15 +129,18 @@ def start(message):
     if is_new_user:
         add_user(user_id, ref_by)
 
-    # Channel join + verify check
-    if not check_joined(user_id):
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("Join Channel 1", url=CHANNEL_1_LINK))
-        markup.add(InlineKeyboardButton("Join Channel 2", url=CHANNEL_2_LINK))
-        bot.send_message(user_id, "⚠️ Please join our channels first to use the bot", reply_markup=markup)
-        return
+    # VIP welcome + channel join
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("✅ Join Channel 1", url=CHANNEL_1_LINK))
+    markup.add(InlineKeyboardButton("✅ Join Channel 2", url=CHANNEL_2_LINK))
+    markup.add(InlineKeyboardButton("💎 VIP Access", callback_data="vip"))
+    bot.send_message(user_id, "👋 Welcome VIP!\nPlease join our channels to continue:", reply_markup=markup)
 
-    show_main_menu(user_id)
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call: CallbackQuery):
+    user_id = call.from_user.id
+    if call.data == "vip":
+        show_main_menu(user_id)
 
 def show_main_menu(user_id):
     markup = InlineKeyboardMarkup()
@@ -151,8 +154,8 @@ def show_main_menu(user_id):
     )
     bot.send_message(user_id, "👋 Welcome!\nSelect an option:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call: CallbackQuery):
+@bot.callback_query_handler(func=lambda call: call.data in ["number", "vehicle", "balance", "referral", "owner"])
+def menu_callback(call: CallbackQuery):
     user_id = call.from_user.id
     if call.data == "number":
         msg = bot.send_message(user_id, "📞 Enter phone number with country code (e.g., 919XXXXXXXXX):")
