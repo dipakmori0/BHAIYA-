@@ -106,20 +106,24 @@ def generate_vehicle_report(vin):
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# ------------------- CHANNEL JOIN CHECK -------------------
 def check_joined(user_id):
-    # Dummy join check, can be updated with actual Telegram join API
+    # Ideally, check user membership via Telegram API (placeholder True for now)
     return True
 
+# ------------------- START HANDLER -------------------
 @bot.message_handler(commands=["start"])
 def start(message):
     user_id = message.from_user.id
     ref_by = None
     is_new_user = False
 
+    # Check if user exists
     row = execute_db("SELECT user_id FROM users WHERE user_id=?", (str(user_id),), fetch=True)
     if not row:
         is_new_user = True
 
+    # Referral
     if message.text.startswith("/start REF") and is_new_user:
         ref_code = message.text.split("REF")[1]
         ref_by = ref_code
@@ -129,17 +133,23 @@ def start(message):
     if is_new_user:
         add_user(user_id, ref_by)
 
-    # VIP welcome + channel join
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Join Channel 1", url=CHANNEL_1_LINK))
-    markup.add(InlineKeyboardButton("✅ Join Channel 2", url=CHANNEL_2_LINK))
-    markup.add(InlineKeyboardButton("💎 VIP Access", callback_data="vip"))
-    bot.send_message(user_id, "👋 Welcome VIP!\nPlease join our channels to continue:", reply_markup=markup)
+    if not check_joined(user_id):
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("Join Channel 1", url=CHANNEL_1_LINK))
+        markup.add(InlineKeyboardButton("Join Channel 2", url=CHANNEL_2_LINK))
+        bot.send_message(user_id, "⚠️ Please join our channels first to use the bot", reply_markup=markup)
+        return
 
+    # VIP Welcome
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🚀 VIP Access", callback_data="vip_start"))
+    bot.send_message(user_id, "👋 Welcome VIP User!\nClick below to start:", reply_markup=markup)
+
+# ------------------- CALLBACK HANDLER -------------------
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call: CallbackQuery):
     user_id = call.from_user.id
-    if call.data == "vip":
+    if call.data == "vip_start":
         show_main_menu(user_id)
 
 def show_main_menu(user_id):
@@ -152,24 +162,7 @@ def show_main_menu(user_id):
         InlineKeyboardButton("🔗 Referral", callback_data="referral"),
         InlineKeyboardButton("👤 Contact Owner", callback_data="owner")
     )
-    bot.send_message(user_id, "👋 Welcome!\nSelect an option:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data in ["number", "vehicle", "balance", "referral", "owner"])
-def menu_callback(call: CallbackQuery):
-    user_id = call.from_user.id
-    if call.data == "number":
-        msg = bot.send_message(user_id, "📞 Enter phone number with country code (e.g., 919XXXXXXXXX):")
-        bot.register_next_step_handler(msg, process_number)
-    elif call.data == "vehicle":
-        msg = bot.send_message(user_id, "🚗 Enter vehicle VIN or number:")
-        bot.register_next_step_handler(msg, process_vehicle)
-    elif call.data == "balance":
-        credits = get_credits(user_id)
-        bot.send_message(user_id, f"💳 Your credits: {credits}")
-    elif call.data == "referral":
-        bot.send_message(user_id, f"🔗 Your referral link:\n{get_referral_link(user_id)}")
-    elif call.data == "owner":
-        bot.send_message(user_id, f"👤 Contact Owner: {OWNER_USERNAME}")
+    bot.send_message(user_id, "👋 Main Menu\nSelect an option:", reply_markup=markup)
 
 def process_number(message):
     user_id = message.from_user.id
