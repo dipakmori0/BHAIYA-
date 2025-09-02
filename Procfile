@@ -1,1 +1,1 @@
-worker: python3 bot.py
+nano Procfile

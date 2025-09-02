@@ -1,87 +1,74 @@
 import os, telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# ====== BOT TOKEN ======
-BOT_TOKEN = "8277485140:AAERBu7ErxHReWZxcYklneU1wEXY--I_32c"   # << अपना token यहाँ
+# Bot token from environment variable
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8277485140:AAERBu7ErxHReWZxcYklneU1wEXY--I_32c")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ====== SETTINGS ======
-CHANNELS = ["@YourChannelHere"]  # यहाँ अपना चैनल username डाल
-SIGNUP_BONUS = 3
-REFERRAL_BONUS = 1
+# Channels to check for join
+CHANNELS = [-1002851939876, -1002321550721]
 
-# ====== DATABASE (memory only) ======
-user_balance = {}
-user_referrals = {}
+# Referral system (simple in-memory)
+referrals = {}  # {user_id: referrer_id}
+credits = {}    # {user_id: credit_count}
 
-# ====== BALANCE SYSTEM ======
-def get_balance(user_id):
-    return user_balance.get(user_id, 0)
-
-def add_balance(user_id, amount):
-    user_balance[user_id] = get_balance(user_id) + amount
-
-# ====== CHECK CHANNEL JOIN ======
-def check_subscription(user_id):
-    # अभी demo में हमेशा True
-    # असली check करने के लिए Telegram API का इस्तेमाल करना पड़ेगा
+def is_user_joined(user_id):
+    for ch_id in CHANNELS:
+        try:
+            member = bot.get_chat_member(ch_id, user_id)
+            if member.status in ['left', 'kicked']:
+                return False
+        except:
+            return False
     return True
 
-# ====== START COMMAND ======
-@bot.message_handler(commands=["start"])
+@bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.chat.id
-    parts = message.text.split()
+    user_id = message.from_user.id
+    args = message.text.split()
+    
+    # Handle referral
+    if len(args) > 1:
+        ref_id = int(args[1])
+        if user_id not in referrals:
+            referrals[user_id] = ref_id
+            credits[user_id] = credits.get(user_id, 0) + 3  # New user gets 3
+            credits[ref_id] = credits.get(ref_id, 0) + 1  # Referrer gets 1
+            bot.send_message(ref_id, f"🎉 Congratulations! Your referral started the bot. +1 credit!")
 
-    # नया user bonus
-    if user_id not in user_balance:
-        add_balance(user_id, SIGNUP_BONUS)
-        bot.send_message(
-            user_id,
-            f"🎁 Welcome! You got {SIGNUP_BONUS} free credits.\n💰 Balance: {get_balance(user_id)}"
-        )
-
-    # referral check
-    if len(parts) > 1:
-        referrer_id = parts[1]
-        if referrer_id.isdigit() and int(referrer_id) != user_id:
-            referrer_id = int(referrer_id)
-            if referrer_id not in user_referrals:
-                user_referrals[referrer_id] = []
-            if user_id not in user_referrals[referrer_id]:
-                user_referrals[referrer_id].append(user_id)
-                add_balance(referrer_id, REFERRAL_BONUS)
-
-                # 🎉 Referrer को msg
-                bot.send_message(
-                    referrer_id,
-                    f"🎉 Congratulations!\nSomeone joined with your link.\n💰 +{REFERRAL_BONUS} credit\nBalance: {get_balance(referrer_id)}"
-                )
-
-    # channel verify
-    if not check_subscription(user_id):
+    if not is_user_joined(user_id):
+        text = "❌ You must join our channels first!"
         markup = InlineKeyboardMarkup()
-        for channel in CHANNELS:
-            markup.add(InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{channel.replace('@','')}"))
-        markup.add(InlineKeyboardButton("✅ Verify", callback_data="verify"))
-        bot.send_message(user_id, "❌ You must join our channels first!", reply_markup=markup)
-    else:
-        show_menu(user_id)
+        markup.add(InlineKeyboardButton("Join Channel 1", url="https://t.me/+eB_J_ExnQT0wZDU9"))
+        markup.add(InlineKeyboardButton("Join Channel 2", url="https://t.me/taskblixosint"))
+        markup.add(InlineKeyboardButton("Verify", callback_data="verify_join"))
+        bot.send_message(message.chat.id, text, reply_markup=markup)
+        return
 
-# ====== MENU ======
-def show_menu(user_id):
+    # VIP Menu
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🚘 Vehicle Info", callback_data="vehicle"))
-    markup.add(InlineKeyboardButton("📱 Phone Number Lookup", callback_data="phone"))
+    markup.add(InlineKeyboardButton("🔍 Vehicle Info", callback_data="vehicle"))
+    markup.add(InlineKeyboardButton("👤 Phone Number Lookup", callback_data="phone"))
     markup.add(InlineKeyboardButton("🎁 Referral System", callback_data="referral"))
-    markup.add(InlineKeyboardButton("👤 Contact Owner", url="https://t.me/Dex797"))  # यहाँ Owner username
-    bot.send_message(user_id, "🎉 VIP Menu unlocked!\n\n📌 Choose an option:", reply_markup=markup)
+    markup.add(InlineKeyboardButton("💰 Contact Owner", url="https://t.me/Dex797"))
+    bot.send_message(message.chat.id, "🎉 VIP Menu unlocked!\n📌 Choose an option:", reply_markup=markup)
 
-# ====== BALANCE COMMAND ======
-@bot.message_handler(commands=["balance"])
-def balance_cmd(message):
-    user_id = message.chat.id
-    bot.send_message(user_id, f"💰 Your Balance: {get_balance(user_id)} credits")
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    if call.data == "verify_join":
+        user_id = call.from_user.id
+        if is_user_joined(user_id):
+            bot.send_message(call.message.chat.id, "✅ You are verified! Now you can use VIP menu.")
+        else:
+            bot.answer_callback_query(call.id, "❌ You still haven't joined all channels.")
+    elif call.data == "vehicle":
+        bot.send_message(call.message.chat.id, "🚗 Vehicle info module coming soon...")
+    elif call.data == "phone":
+        bot.send_message(call.message.chat.id, "👤 Phone lookup module coming soon...")
+    elif call.data == "referral":
+        user_id = call.from_user.id
+        credit = credits.get(user_id, 0)
+        bot.send_message(call.message.chat.id, f"🎁 Your credits: {credit}")
 
 print("🤖 Bot is running...")
 bot.infinity_polling()
