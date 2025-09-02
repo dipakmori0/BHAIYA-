@@ -1,7 +1,6 @@
 import requests
 import sqlite3
-from random import randint
-import telebot
+from telebot import TeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 # ---------------- CONFIG ----------------
@@ -104,9 +103,11 @@ def generate_vehicle_report(vin):
     except:
         return f"❌ Failed to fetch vehicle info for VIN: {vin}"
 
-bot = telebot.TeleBot(BOT_TOKEN)
+# ---------- TELEGRAM BOT ----------
+bot = TeleBot(BOT_TOKEN)
 
 def check_joined(user_id):
+    # TODO: real channel check via get_chat_member
     return True
 
 @bot.message_handler(commands=["start"])
@@ -128,11 +129,12 @@ def start(message):
     if is_new_user:
         add_user(user_id, ref_by)
 
+    # Channel join + verify check
     if not check_joined(user_id):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("Join Channel 1", url=CHANNEL_1_LINK))
         markup.add(InlineKeyboardButton("Join Channel 2", url=CHANNEL_2_LINK))
-        bot.send_message(user_id, "⚠️ Please join our channels first", reply_markup=markup)
+        bot.send_message(user_id, "⚠️ Please join our channels first to use the bot", reply_markup=markup)
         return
 
     show_main_menu(user_id)
@@ -145,7 +147,6 @@ def show_main_menu(user_id):
         InlineKeyboardButton("🚗 Vehicle Info", callback_data="vehicle"),
         InlineKeyboardButton("💳 Check Balance", callback_data="balance"),
         InlineKeyboardButton("🔗 Referral", callback_data="referral"),
-        InlineKeyboardButton("🤖 Clone My Bot", callback_data="clone"),
         InlineKeyboardButton("👤 Contact Owner", callback_data="owner")
     )
     bot.send_message(user_id, "👋 Welcome!\nSelect an option:", reply_markup=markup)
@@ -154,7 +155,7 @@ def show_main_menu(user_id):
 def callback(call: CallbackQuery):
     user_id = call.from_user.id
     if call.data == "number":
-        msg = bot.send_message(user_id, "📞 Enter phone number with country code:")
+        msg = bot.send_message(user_id, "📞 Enter phone number with country code (e.g., 919XXXXXXXXX):")
         bot.register_next_step_handler(msg, process_number)
     elif call.data == "vehicle":
         msg = bot.send_message(user_id, "🚗 Enter vehicle VIN or number:")
@@ -164,31 +165,29 @@ def callback(call: CallbackQuery):
         bot.send_message(user_id, f"💳 Your credits: {credits}")
     elif call.data == "referral":
         bot.send_message(user_id, f"🔗 Your referral link:\n{get_referral_link(user_id)}")
-    elif call.data == "clone":
-        bot.send_message(user_id, "🔗 Send your bot token to create a clone")
     elif call.data == "owner":
         bot.send_message(user_id, f"👤 Contact Owner: {OWNER_USERNAME}")
 
 def process_number(message):
     user_id = message.from_user.id
     phone = message.text.strip()
-    bot.send_message(user_id, f"📞 Processing number info for {phone}...")
+    bot.send_message(user_id, f"📞 Processing number info for {phone}...\n⏳ Please wait...")
     if use_credit(user_id):
         result = generate_people_report(phone)
         bot.send_message(user_id, result)
     else:
-        bot.send_message(user_id, "❌ Not enough credits")
+        bot.send_message(user_id, "❌ You don't have enough credits.")
     show_main_menu(user_id)
 
 def process_vehicle(message):
     user_id = message.from_user.id
     vin = message.text.strip()
-    bot.send_message(user_id, f"🚗 Processing vehicle info for {vin}...")
+    bot.send_message(user_id, f"🚗 Processing vehicle info for {vin}...\n⏳ Please wait...")
     if use_credit(user_id):
         result = generate_vehicle_report(vin)
         bot.send_message(user_id, result)
     else:
-        bot.send_message(user_id, "❌ Not enough credits")
+        bot.send_message(user_id, "❌ You don't have enough credits.")
     show_main_menu(user_id)
 
 print("🤖 Bot is running...")
