@@ -1,1 +1,2 @@
-nano requirements.txt
+pyTelegramBotAPI==4.12.0
+requests==2.32.5
