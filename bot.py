@@ -1,56 +1,47 @@
 import telebot
-from telebot import types
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# ✅ Tumhara bot token
-API_TOKEN = "8277485140:AAERBu7ErxHReWZxcYklneU1wEXY--I_32c"
+# ✅ Bot token
+BOT_TOKEN = "8277485140:AAERBu7ErxHReWZxcYklneU1wEXY--I_32c"
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Channels with IDs and invite links
-CHANNELS = [
-    {"id": -1002851939876, "link": "https://t.me/+eB_J_ExnQT0wZDU9", "name": "Channel 1"},
-    {"id": -1002321550721, "link": "https://t.me/taskblixosint", "name": "Channel 2"}
-]
+# Channels ID list
+CHANNELS = [-1002851939876, -1002321550721]
 
-bot = telebot.TeleBot(API_TOKEN)
-
-def is_user_in_channels(user_id):
-    for ch in CHANNELS:
+# Check if user joined all channels
+def is_user_joined(user_id):
+    for channel_id in CHANNELS:
         try:
-            member = bot.get_chat_member(ch["id"], user_id)
+            member = bot.get_chat_member(channel_id, user_id)
             if member.status in ['left', 'kicked']:
                 return False
-        except Exception:
+        except:
             return False
     return True
 
-def channel_join_markup():
-    markup = types.InlineKeyboardMarkup()
-    for ch in CHANNELS:
-        markup.add(types.InlineKeyboardButton(
-            text=f"Join {ch['name']}",
-            url=ch['link']  # Direct join link
-        ))
-    markup.add(types.InlineKeyboardButton(text="✅ Verify", callback_data="verify"))
-    return markup
-
+# /start command
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
-    if not is_user_in_channels(user_id):
-        bot.send_message(message.chat.id, "❌ Please join the required channel(s) first!", reply_markup=channel_join_markup())
-    else:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(types.KeyboardButton("🚀 Start"))
-        bot.send_message(message.chat.id, "👋 Welcome VIP User!\nClick below to start:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data == "verify")
-def verify(call):
-    user_id = call.from_user.id
-    if is_user_in_channels(user_id):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(types.KeyboardButton("🚀 Start"))
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
-                              text="✅ Verified! Welcome VIP User!\nClick below to start:", reply_markup=markup)
-    else:
-        bot.answer_callback_query(call.id, "❌ You are not yet joined in all required channels!", show_alert=True)
+    if not is_user_joined(user_id):
+        text = "❌ You must join our channels first!"
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("Join Channel 1", url="https://t.me/+eB_J_ExnQT0wZDU9"))
+        markup.add(InlineKeyboardButton("Join Channel 2", url="https://t.me/taskblixosint"))
+        bot.send_message(message.chat.id, text, reply_markup=markup)
+        return
 
+    # VIP welcome message
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("Start VIP", callback_data="start_vip"))
+    bot.send_message(message.chat.id, "👋 Welcome VIP User!\nClick below to start:", reply_markup=markup)
+
+# Callback handler for Start VIP button
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    if call.data == "start_vip":
+        bot.send_message(call.message.chat.id, "✅ You are verified! Let's begin your VIP session.")
+
+# Run bot
 bot.infinity_polling()
