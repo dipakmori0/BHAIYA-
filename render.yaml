@@ -1,7 +1,10 @@
 services:
-  - type: worker
-    name: telegram-bot
+  - type: web
+    name: bhaiya-bot
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python3 bot.py"
+    startCommand: "python bot.py"
+    envVars:
+      - key: BOT_TOKEN
+        value: "8304954508:AAHLxY3YfPHwF1dnBxv8noLUhmz9YxV5MxU"
